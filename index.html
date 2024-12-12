@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reproductor con Subtítulos y Vocabulario</title>
+
+<!-- Fuente y Estilos Básicos -->
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bg-color-light: #f0f0f0;
+    --text-color-light: #333;
+    --bg-color-dark: #1a1a1a;
+    --text-color-dark: #eee;
+    --accent-color: #4a90e2;
+    --accent-color-dark: #4489d5;
+    --highlight-color: #ffe680;
+    --highlight-bg: rgba(255, 230, 128, 0.2);
+    --transition-time: 0.3s;
+    --card-bg: rgba(255,255,255,0.2);
+    --card-bg-dark: rgba(0,0,0,0.4);
+  }
+
+  body {
+    margin: 0;
+    font-family: 'Poppins', sans-serif;
+    background: linear-gradient(to bottom right, #4a90e2, #50c9c3);
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    color: var(--text-color-light);
+    transition: background var(--transition-time), color var(--transition-time);
+    overflow: hidden; /* Evitar scroll */
+  }
+
+  body.dark-mode {
+    background: linear-gradient(to bottom right, #333, #111);
+    color: var(--text-color-dark);
+  }
+
+  .container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    padding: 2rem;
+  }
+
+  .card {
+    background: var(--card-bg);
+    backdrop-filter: blur(10px);
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.2);
+    padding: 2rem;
+    max-width: 400px;
+    width: 100%;
+    transition: background var(--transition-time);
+  }
+
+  body.dark-mode .card {
+    background: var(--card-bg-dark);
+  }
+
+  h1 {
+    text-align: center;
+    margin-bottom: 1rem;
+  }
+
+  input[type="text"], input[type="password"], input[type="file"] {
+    width: 100%;
+    padding: 0.7rem;
+    border: none;
+    border-radius: 5px;
+    margin-bottom: 1rem;
+    font-size: 1rem;
+  }
+
+  input[type="file"] {
+    background: #fff;
+  }
+
+  button {
+    background: var(--accent-color);
+    color: #fff;
+    padding: 0.7rem 1rem;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1rem;
+    margin: 0.5rem 0;
+    transition: background var(--transition-time);
+  }
+
+  button:hover {
+    background: var(--accent-color-dark);
+  }
+
+  .modal-overlay {
+    position: fixed;
+    top:0; left:0; right:0; bottom:0;
+    background: rgba(0,0,0,0.5);
+    display:flex; 
+    align-items:center; 
+    justify-content:center;
+    z-index: 9999;
+    opacity:0;
+    pointer-events:none;
+    transition: opacity var(--transition-time);
+  }
+
+  .modal-overlay.show {
+    opacity:1;
+    pointer-events:auto;
+  }
+
+  .modal {
+    background:#fff;
+    color:#333;
+    border-radius:10px;
+    padding:2rem;
+    max-width:400px;
+    width:100%;
+    box-shadow:0 0 10px rgba(0,0,0,0.3);
+    position:relative;
+  }
+
+  .modal h2 {
+    margin-top:0;
+    margin-bottom:1rem;
+  }
+
+  .modal .close-btn {
+    position:absolute;
+    top:10px;right:10px;
+    background:none;
+    border:none;
+    font-size:1.5rem;
+    cursor:pointer;
+  }
+
+  #video-container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    background:#000;
+    overflow:hidden;
+  }
+
+  video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    background:#000;
+  }
+
+  #subtitles-container {
+    position: absolute;
+    bottom: 10%;
+    width: 100%;
+    pointer-events: none;
+    text-align: center;
+    font-size: 1.2rem;
+    transition: color var(--transition-time), text-shadow var(--transition-time);
+  }
+
+  body:not(.dark-mode) #subtitle-german, body:not(.dark-mode) #subtitle-spanish {
+    color: #fff;
+    text-shadow: 2px 2px 4px #000;
+  }
+
+  body.dark-mode #subtitle-german, body.dark-mode #subtitle-spanish {
+    color: #000;
+    text-shadow: 2px 2px 4px #fff;
+  }
+
+  #subtitle-german, #subtitle-spanish {
+    margin: 0.3rem 0;
+    pointer-events: auto;
+  }
+
+  #subtitle-german .word {
+    cursor: pointer;
+    padding:0 3px;
+    border-radius:3px;
+  }
+
+  #subtitle-german .word.selected {
+    background: var(--highlight-bg);
+    border-bottom:2px solid var(--highlight-color);
+  }
+
+  .controls-bar {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    display:flex;
+    gap:0.5rem;
+    background: rgba(0,0,0,0.5);
+    padding: 0.5rem 1rem;
+    border-radius: 5px;
+    z-index: 10000;
+  }
+
+  .controls-bar button {
+    background: rgba(255,255,255,0.1);
+    color:#fff;
+    padding: 0.5rem;
+    border-radius: 5px;
+  }
+
+  body.dark-mode .controls-bar button {
+    color:#ddd;
+  }
+
+  #vocab-sidebar {
+    position: fixed;
+    right:0;
+    top:0;
+    bottom:0;
+    width:300px;
+    background: var(--card-bg);
+    backdrop-filter:blur(10px);
+    box-shadow:-2px 0 5px rgba(0,0,0,0.2);
+    transform: translateX(100%);
+    transition: transform var(--transition-time);
+    display:flex;
+    flex-direction:column;
+    z-index:999;
+    padding:1rem;
+  }
+
+  body.dark-mode #vocab-sidebar {
+    background: var(--card-bg-dark);
+  }
+
+  #vocab-sidebar.show {
+    transform: translateX(0);
+  }
+
+  #vocab-sidebar h3 {
+    margin-top:0;
+  }
+
+  #vocab-list {
+    flex:1;
+    overflow:auto;
+    padding:0;
+    list-style:none;
+    margin:0;
+  }
+
+  #vocab-list li {
+    background: rgba(255,255,255,0.2);
+    padding:0.5rem;
+    margin:0.5rem 0;
+    border-radius:5px;
+    cursor:pointer;
+  }
+
+  .vocab-actions {
+    display:flex;
+    justify-content:space-between;
+    margin-top:1rem;
+  }
+
+  @media(max-width:600px) {
+    #vocab-sidebar {
+      width:80%;
+    }
+  }
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+
+</head>
+<body>
+
+<!-- Modales de Inicio de Sesión y Registro -->
+<div class="modal-overlay" id="login-modal-overlay">
+  <div class="modal">
+    <button class="close-btn" onclick="closeLoginModal()">×</button>
+    <h2>Iniciar Sesión</h2>
+    <input type="text" id="login-username" placeholder="Nombre de Usuario" />
+    <input type="password" id="login-password" placeholder="Contraseña" />
+    <button onclick="login()">Iniciar Sesión</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="register-modal-overlay">
+  <div class="modal">
+    <button class="close-btn" onclick="closeRegisterModal()">×</button>
+    <h2>Registro</h2>
+    <input type="text" id="register-username" placeholder="Nombre de Usuario" />
+    <input type="password" id="register-password" placeholder="Contraseña (mín. 8 caracteres)" />
+    <button onclick="registerUser()">Registrar</button>
+  </div>
+</div>
+
+<!-- Modal Manual de Usuario -->
+<div class="modal-overlay" id="manual-modal">
+  <div class="modal">
+    <button class="close-btn" onclick="closeManualModal()">×</button>
+    <h2>Manual de Usuario</h2>
+    <p>Aquí encontrarás instrucciones detalladas:</p>
+    <ul>
+      <li><b>Registro/Iniciar Sesión:</b> Usuario nuevo queda "No autorizado" hasta que el admin cambie a "Si".</li>
+      <li><b>Cargar Archivos:</b> Sube un .mp4 y dos .srt (Alemán/Español).</li>
+      <li><b>Reproducción y Subtítulos:</b> Video en pantalla completa sin bordes. Al nuevo diálogo en Alemán, se pausa. Un clic fuera de subtítulos reanuda.</li>
+      <li><b>Vocabulario:</b> Clic en palabra = palabra individual. Arrastre = frase completa.</li>
+      <li><b>Controles:</b> Modo oscuro/ claro (🌓), Vocabulario (📚), Pantalla completa (⛶), Volver al menú (🏠).</li>
+      <li><b>Persistencia:</b> Progreso (tiempo y vocabulario) se guarda localmente. Al recargar, se reanuda sin necesidad de login o recarga de archivos.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- Barra Lateral de Vocabulario -->
+<div id="vocab-sidebar">
+  <h3>Vocabulario</h3>
+  <ul id="vocab-list"></ul>
+  <div class="vocab-actions">
+    <button onclick="clearVocab()">🗑️ Limpiar</button>
+    <button onclick="downloadVocab()">📄 Descargar</button>
+  </div>
+</div>
+
+<div class="container" id="main-container">
+  <div class="card" id="auth-card">
+    <h1>Reproductor con Subtítulos y Vocabulario</h1>
+    <p>Inicia sesión o regístrate para comenzar.</p>
+    <button onclick="showLoginModal()">Iniciar Sesión</button>
+    <button onclick="showRegisterModal()">Registrarse</button>
+  </div>
+
+  <div class="card" id="upload-card" style="display:none;">
+    <h1>Reproductor con Subtítulos y Vocabulario</h1>
+    <p>Selecciona tus archivos:</p>
+    <label>🎥 Video (mp4):<br>
+      <input type="file" id="video-file" accept="video/mp4">
+    </label>
+    <label>📝 Subtítulos en Alemán (srt):<br>
+      <input type="file" id="sub-german" accept=".srt">
+    </label>
+    <label>📝 Subtítulos en Español (srt):<br>
+      <input type="file" id="sub-spanish" accept=".srt">
+    </label>
+    <button onclick="startPlayback()">▶️ Reproducir</button>
+  </div>
+
+  <div id="video-section" style="display:none;">
+    <div id="video-container">
+      <video id="video-player" controls></video>
+      <div id="subtitles-container">
+        <div id="subtitle-german"></div>
+        <div id="subtitle-spanish"></div>
+      </div>
+    </div>
+
+    <div class="controls-bar">
+      <button onclick="toggleDarkMode()">🌓</button>
+      <button onclick="toggleVocabSidebar()">📚</button>
+      <button onclick="toggleFullScreen()">⛶</button>
+      <button onclick="backToMenu()">🏠</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ========================================================
+// VARIABLES GLOBALES
+// ========================================================
+let currentUser = null;
+let sessionToken = null;
+const MAX_IPS_PER_USER = 2; 
+let userIP = "127.0.0.1"; // Inicialización, se actualizará con fetch
+let deviceModel = navigator.userAgent;
+
+const ENDPOINT_URL = "https://script.google.com/macros/s/AKfycbwiDEqg-uf9wLlk6ODWz45Y1UmK8rlPmL7AnLcMxz3I58x1tYaIWyUWLh5S00gVTfb2/exec";
+
+let video = null;
+let germanSubtitles = [];
+let spanishSubtitles = [];
+let currentGermanIndex = -1;
+let currentSpanishIndex = -1;
+
+let isPausedDueToDialogue = false;
+let selectedWords = [];
+let isDragging = false;
+let dragStartWord = null;
+let dragSelectedWords = [];
+
+// ========================================================
+// INICIALIZACIÓN
+// ========================================================
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadLocalProgress(); 
+  getUserIP();
+  checkSession();
+});
+
+function getUserIP() {
+  fetch('https://api.ipify.org?format=json')
+    .then(res => res.json())
+    .then(data => {
+      userIP = data.ip;
+    })
+    .catch(() => {
+      console.warn('No se pudo obtener la IP, usando 127.0.0.1');
+      userIP = '127.0.0.1';
+    });
+}
+
+// ========================================================
+// MODALES DE LOGIN/REGISTRO
+// ========================================================
+function showLoginModal() {
+  document.getElementById('login-modal-overlay').classList.add('show');
+}
+function closeLoginModal() {
+  document.getElementById('login-modal-overlay').classList.remove('show');
+}
+function showRegisterModal() {
+  closeLoginModal();
+  document.getElementById('register-modal-overlay').classList.add('show');
+}
+function closeRegisterModal() {
+  document.getElementById('register-modal-overlay').classList.remove('show');
+}
+function showManualModal() {
+  document.getElementById('manual-modal').classList.add('show');
+}
+function closeManualModal() {
+  document.getElementById('manual-modal').classList.remove('show');
+}
+
+// ========================================================
+// LOGIN / REGISTRO
+// ========================================================
+async function registerUser() {
+  const username = document.getElementById('register-username').value.trim();
+  const password = document.getElementById('register-password').value;
+
+  if (username === "" || password === "") {
+    alert("Completa todos los campos");
+    return;
+  }
+  if (password.length < 8) {
+    alert("La contraseña debe tener al menos 8 caracteres");
+    return;
+  }
+
+  const passwordEnc = encryptPassword(password);
+
+  const data = new URLSearchParams();
+  data.append('action','register');
+  data.append('username', username);
+  data.append('password', passwordEnc);
+  data.append('ip', userIP);
+  data.append('deviceModel', deviceModel);
+
+  try {
+    const res = await fetch(ENDPOINT_URL, {
+      method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:data
+    });
+    const json = await res.json();
+
+    if (json.error) {
+      alert(json.error);
+    } else {
+      alert(json.message);
+      closeRegisterModal();
+    }
+  } catch (error) {
+    console.error("Error en el registro:", error);
+    alert("Ocurrió un error durante el registro. Inténtalo de nuevo.");
+  }
+}
+
+async function login() {
+  const username = document.getElementById('login-username').value.trim();
+  const password = document.getElementById('login-password').value;
+
+  if (username === "" || password === "") {
+    alert("Completa todos los campos");
+    return;
+  }
+
+  const passwordEnc = encryptPassword(password);
+
+  const data = new URLSearchParams();
+  data.append('action','login');
+  data.append('username', username);
+  data.append('password', passwordEnc);
+  data.append('ip', userIP);
+  data.append('deviceModel', deviceModel);
+
+  try {
+    const res = await fetch(ENDPOINT_URL, {
+      method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:data
+    });
+    const json = await res.json();
+
+    if (json.error) {
+      alert(json.error);
+    } else {
+      currentUser = username;
+      sessionToken = generateSessionToken();
+      sessionStorage.setItem('username', username);
+      sessionStorage.setItem('token', sessionToken);
+      alert(json.message);
+      closeLoginModal();
+      showUploadInterface();
+      saveLocalProgress(); 
+    }
+  } catch (error) {
+    console.error("Error en el inicio de sesión:", error);
+    alert("Ocurrió un error durante el inicio de sesión. Inténtalo de nuevo.");
+  }
+}
+
+function generateSessionToken() {
+  return Math.random().toString(36).substring(2);
+}
+
+function encryptPassword(pass) {
+  return CryptoJS.SHA256(pass).toString();
+}
+
+function checkSession() {
+  const usr = sessionStorage.getItem('username');
+  const tok = sessionStorage.getItem('token');
+  if (usr && tok) {
+    currentUser = usr;
+    sessionToken = tok;
+    showUploadInterface();
+    loadLocalProgress(); 
+  }
+}
+
+function showUploadInterface() {
+  document.getElementById('auth-card').style.display = 'none';
+  document.getElementById('upload-card').style.display = 'block';
+}
+
+// ========================================================
+// CARGA DE ARCHIVOS Y REPRODUCCIÓN
+// ========================================================
+async function startPlayback() {
+  const videoFile = document.getElementById('video-file').files[0];
+  const subGermanFile = document.getElementById('sub-german').files[0];
+  const subSpanishFile = document.getElementById('sub-spanish').files[0];
+
+  if(!videoFile || !subGermanFile || !subSpanishFile) {
+    alert("Selecciona todos los archivos requeridos");
+    return;
+  }
+
+  if(videoFile.type !== "video/mp4") {
+    alert("El video debe ser formato mp4");
+    return;
+  }
+
+  if(!subGermanFile.name.endsWith('.srt') || !subSpanishFile.name.endsWith('.srt')) {
+    alert("Los subtítulos deben ser archivos .srt");
+    return;
+  }
+
+  const videoURL = URL.createObjectURL(videoFile);
+  const germanText = await fileToText(subGermanFile);
+  const spanishText = await fileToText(subSpanishFile);
+
+  germanSubtitles = parseSRT(germanText);
+  spanishSubtitles = parseSRT(spanishText);
+
+  video = document.getElementById('video-player');
+  video.src = videoURL;
+
+  document.getElementById('upload-card').style.display = 'none';
+  document.getElementById('video-section').style.display = 'block';
+
+  setupVideoEvents();
+
+  // Cargar progreso anterior si existe
+  loadLocalProgressFromVideoName(videoFile.name);
+}
+
+function fileToText(file) {
+  return new Promise((resolve,reject)=>{
+    const reader = new FileReader();
+    reader.onload = ()=>resolve(reader.result);
+    reader.onerror = ()=>reject(reader.error);
+    reader.readAsText(file);
+  });
+}
+
+function parseSRT(data) {
+  const pattern = /(\d+)\s+(\d{2}:\d{2}:\d{2},\d{3}) --> (\d{2}:\d{2}:\d{2},\d{3})([\s\S]*?(?=\n\n|$))/g;
+  let matches;
+  let results = [];
+  while ((matches = pattern.exec(data)) !== null) {
+    const start = timeToSeconds(matches[2]);
+    const end = timeToSeconds(matches[3]);
+    const text = matches[4].trim().replace(/\n/g," ");
+    results.push({start,end,text});
+  }
+  return results;
+}
+
+function timeToSeconds(t) {
+  const parts = t.split(':');
+  const s = parts[2].split(',');
+  const hh = parseInt(parts[0],10);
+  const mm = parseInt(parts[1],10);
+  const ss = parseInt(s[0],10);
+  const ms = parseInt(s[1],10);
+  return hh*3600+mm*60+ss+(ms/1000);
+}
+
+function setupVideoEvents() {
+  video.addEventListener('timeupdate', updateSubtitles);
+  video.addEventListener('play', ()=> isPausedDueToDialogue = false);
+  video.addEventListener('pause', saveLocalProgress);
+  video.addEventListener('ended', saveLocalProgress);
+}
+
+function updateSubtitles() {
+  const t = video.currentTime;
+  currentGermanIndex = findCurrentIndex(germanSubtitles, t, currentGermanIndex);
+  currentSpanishIndex = findCurrentIndex(spanishSubtitles, t, currentSpanishIndex);
+
+  displaySubtitle('subtitle-german', germanSubtitles, currentGermanIndex, true);
+  displaySubtitle('subtitle-spanish', spanishSubtitles, currentSpanishIndex, false);
+
+  if(currentGermanIndex !== -1) {
+    const sub = germanSubtitles[currentGermanIndex];
+    if (Math.abs(video.currentTime - sub.start) < 0.5 && !isPausedDueToDialogue) {
+      video.pause();
+      isPausedDueToDialogue = true;
+      saveLocalProgress();
+    }
+  }
+}
+
+function findCurrentIndex(subs, currentTime, lastIndex) {
+  if(subs.length === 0) return -1;
+  let startIndex = lastIndex < 0 ? 0 : lastIndex;
+  for (let i = startIndex; i < subs.length; i++) {
+    if (currentTime >= subs[i].start && currentTime <= subs[i].end) {
+      return i;
+    }
+    if (subs[i].end > currentTime) break;
+  }
+  for (let i = 0; i < subs.length; i++) {
+    if (currentTime >= subs[i].start && currentTime <= subs[i].end) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+function displaySubtitle(elementId, subs, index, isGerman) {
+  const el = document.getElementById(elementId);
+  el.innerHTML = "";
+  if(index === -1) return;
+  const text = subs[index].text;
+  if(isGerman) {
+    const words = text.split(" ");
+    words.forEach((w,i)=>{
+      const span = document.createElement('span');
+      span.textContent = w;
+      span.classList.add('word');
+      span.addEventListener('click', wordClickHandler);
+      span.dataset.index = i; 
+      el.appendChild(span);
+      el.appendChild(document.createTextNode(' '));
+    });
+  } else {
+    el.textContent = text;
+  }
+}
+
+function wordClickHandler(event) {
+  const word = event.target;
+  const text = word.textContent;
+  if(!selectedWords.includes(text)) {
+    selectedWords.push(text);
+    updateVocabList();
+    saveLocalProgress();
+  }
+}
+
+const subtitleGermanEl = document.getElementById('subtitle-german');
+
+subtitleGermanEl.addEventListener('mousedown',(e)=>{
+  if(!e.target.classList.contains('word')) return;
+  isDragging = true;
+  dragStartWord = e.target;
+  dragSelectedWords = [dragStartWord];
+  dragStartWord.classList.add('selected');
+});
+
+subtitleGermanEl.addEventListener('mousemove',(e)=>{
+  if(isDragging && e.target.classList.contains('word') && !dragSelectedWords.includes(e.target)) {
+    dragSelectedWords.push(e.target);
+    e.target.classList.add('selected');
+  }
+});
+
+subtitleGermanEl.addEventListener('mouseup',(e)=>{
+  if(isDragging) {
+    isDragging = false;
+    const phrase = dragSelectedWords.map(w=>w.textContent).join(" ");
+    if(!selectedWords.includes(phrase)) {
+      selectedWords.push(phrase);
+      updateVocabList();
+      saveLocalProgress();
+    }
+    dragSelectedWords.forEach(w=>w.classList.remove('selected'));
+  }
+});
+
+const videoContainer = document.getElementById('video-container');
+videoContainer.addEventListener('click',(event)=>{
+  if(isDragging) return;
+  if(event.target.closest('#subtitle-german')) {
+    return; 
+  }
+  if(video.paused && isPausedDueToDialogue) {
+    video.play();
+    saveLocalProgress();
+  }
+});
+
+function backToMenu() {
+  video.pause();
+  document.getElementById('video-section').style.display = 'none';
+  document.getElementById('upload-card').style.display = 'block';
+  clearLocalProgress();
+}
+
+// ========================================================
+// VOCABULARIO
+// ========================================================
+function updateVocabList() {
+  const list = document.getElementById('vocab-list');
+  list.innerHTML = "";
+  selectedWords.forEach((w,i)=>{
+    const li = document.createElement('li');
+    li.textContent = w;
+    li.addEventListener('click', ()=>{
+      selectedWords.splice(i,1);
+      updateVocabList();
+      updateSubtitleSelection();
+      saveLocalProgress();
+    });
+    list.appendChild(li);
+  });
+}
+
+function updateSubtitleSelection() {
+  const words = subtitleGermanEl.querySelectorAll('.word');
+  words.forEach(w=>{
+    if(selectedWords.includes(w.textContent)) {
+      w.classList.add('selected');
+    } else {
+      w.classList.remove('selected');
+    }
+  });
+}
+
+function clearVocab() {
+  if(confirm("¿Seguro que deseas limpiar todo el vocabulario?")) {
+    selectedWords = [];
+    updateVocabList();
+    updateSubtitleSelection();
+    saveLocalProgress();
+  }
+}
+
+function downloadVocab() {
+  if(selectedWords.length === 0) {
+    alert("No hay vocabulario para descargar");
+    return;
+  }
+  const blob = new Blob([selectedWords.join("\n")], {type:"text/plain"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = "vocabulario.txt";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function toggleVocabSidebar() {
+  const sidebar = document.getElementById('vocab-sidebar');
+  sidebar.classList.toggle('show');
+}
+
+// ========================================================
+// PERSISTENCIA DE DATOS EN LOCAL STORAGE
+// ========================================================
+function saveLocalProgress() {
+  if(!video) return;
+  const videoName = video.src.split('/').pop().split('?')[0] || "defaultVideo";
+  const progress = {
+    currentTime: video.currentTime,
+    vocab: selectedWords
+  };
+  localStorage.setItem(`progress_${videoName}`, JSON.stringify(progress));
+}
+
+function loadLocalProgress() {
+  // Cargar último progreso sin video, si se quiere
+  // En este caso asumiremos que no hay video hasta cargar uno
+  // Si se quisiera retomar sin cargar, necesitaríamos guardar los blobs en IndexedDB
+  // Por ahora, sólo se cargará después de elegir archivos.
+}
+
+function loadLocalProgressFromVideoName(videoName) {
+  const progress = localStorage.getItem(`progress_${videoName}`);
+  if(progress) {
+    const { currentTime, vocab } = JSON.parse(progress);
+    video.currentTime = currentTime || 0;
+    if(vocab) {
+      selectedWords = vocab;
+      updateVocabList();
+      updateSubtitleSelection();
+    }
+  }
+}
+
+function clearLocalProgress() {
+  if(!video) return;
+  const videoName = video.src.split('/').pop().split('?')[0] || "defaultVideo";
+  localStorage.removeItem(`progress_${videoName}`);
+}
+
+// ========================================================
+// PERSONALIZACIÓN DE INTERFAZ
+// ========================================================
+function toggleDarkMode() {
+  document.body.classList.toggle('dark-mode');
+}
+
+function toggleFullScreen() {
+  if(!document.fullscreenElement) {
+    document.documentElement.requestFullscreen();
+  } else {
+    document.exitFullscreen();
+  }
+}
+
+// Guardar progreso antes de salir
+window.addEventListener('beforeunload', saveLocalProgress);
+</script>
+</body>
+</html>
